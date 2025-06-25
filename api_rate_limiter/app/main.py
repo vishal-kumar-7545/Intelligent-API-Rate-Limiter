@@ -20,9 +20,3 @@ def check_limit(data: RequestModel):
         "allowed": allowed,
         "remaining_tokens": remaining
     }
-
-
-@app.get("/ping")
-async def ping():
-    return {"message": "pong"}
-
