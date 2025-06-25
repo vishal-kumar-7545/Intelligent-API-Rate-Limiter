@@ -1,7 +1,7 @@
 import time
 import redis
-from config import RATE_LIMIT_CONFIG
-from redis_client import r
+from api_rate_limiter.app.config import RATE_LIMIT_CONFIG
+from api_rate_limiter.app.redis_client import r
 
 
 #Connet to redis
