@@ -1,13 +1,18 @@
 import time
 import redis
-from config import REDIS_HOST, REDIS_PORT, TOKEN_LIMIT, REFILL_RATE
+from config import RATE_LIMIT_CONFIG
+from redis_client import r
 
 
 #Connet to redis
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses = True)
+# r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses = True)
 
 def get_tokens(api_key:str):
     current_time = time.time()
+
+    config = RATE_LIMIT_CONFIG.get(api_key, RATE_LIMIT_CONFIG["basic-user"])
+    TOKEN_LIMIT = config["TOKEN_LIMIT"]
+    REFILL_RATE = config["REFILL_RATE"]
 
     token_key = f"tokens:{api_key}"
     time_key = f"time:{api_key}"
