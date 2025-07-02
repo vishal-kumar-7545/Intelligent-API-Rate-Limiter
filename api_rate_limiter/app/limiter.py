@@ -33,7 +33,6 @@ def is_request_allowed(api_key: str) -> bool:
             "tokens": tokens,
             "last_refill": now
         })
-        return False
     else:
         #allow request and consume a token
         tokens -= 1
@@ -41,4 +40,8 @@ def is_request_allowed(api_key: str) -> bool:
             "tokens": tokens,
             "last_refill": now
         })
-        return True
+    
+    r.lpush(f"usage: {api_key}", time.time())
+    r.ltrim(f"usage: {api_key}", 0, 999)
+    
+    return tokens >= 1
