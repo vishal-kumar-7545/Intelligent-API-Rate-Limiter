@@ -1,49 +1,44 @@
 import time
-import redis
+from fastapi import HTTPException
 from api_rate_limiter.app.config import RATE_LIMIT_CONFIG
 from api_rate_limiter.app.redis_client import r
 
 
-#Connet to redis
-# r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses = True)
+def is_request_allowed(api_key: str) -> bool:
+    config_key = f"config: {api_key}"
 
-def get_tokens(api_key:str):
-    current_time = time.time()
+    if not r.exists(config_key):
+        raise HTTPException(status_code=404, detail="API key not found")
+    
+    #get all fields
+    config = r.hgetall(config_key)
+    try:
+        limit = int(config["limit"])
+        refill_rate = float(config["refill_rate"])
+        tokens = float(config["tokens"])
+        last_refill = float(config["last_refill"])
+    except KeyError:
+        raise HTTPException(status_code=500, detail="Incomplete rate limit config")
+    except ValueError:
+        raise HTTPException(status_code=500, detail="Corrupted rate limit values")
+    
+    now = time.time()
+    elapsed = now - last_refill
 
-    config = RATE_LIMIT_CONFIG.get(api_key, RATE_LIMIT_CONFIG["basic-user"])
-    TOKEN_LIMIT = config["TOKEN_LIMIT"]
-    REFILL_RATE = config["REFILL_RATE"]
+    #refill token based on elapsed time and refill rate
 
-    token_key = f"tokens:{api_key}"
-    time_key = f"time:{api_key}"
-
-    tokens = r.get(token_key)
-    last_refill = r.get(time_key)
-
-    if tokens is None:
-        tokens = TOKEN_LIMIT
-        r.set(token_key, TOKEN_LIMIT)
+    if tokens < 1:
+        # not enough tokens -- reject request
+        r.hset(config_key, mapping={
+            "tokens": tokens,
+            "last_refill": now
+        })
+        return False
     else:
-        tokens = int(tokens)
-
-    if last_refill is None:
-        last_refill = current_time
-        r.set(time_key, current_time)
-    else:
-        last_refill = float(last_refill)
-
-    #calculate time
-    time_passed = current_time - last_refill
-    tokens_to_add = int((time_passed/60)* REFILL_RATE)
-
-    if tokens_to_add > 0:
-        tokens = min(TOKEN_LIMIT, tokens + tokens_to_add)
-        r.set(token_key, tokens)
-        r.set(time_key, current_time)
-
-    if tokens > 0:
+        #allow request and consume a token
         tokens -= 1
-        r.set(token_key, tokens)
-        return True, tokens
-    else:
-        return False, 0
+        r.hset(config_key, mapping={
+            "tokens": tokens,
+            "last_refill": now
+        })
+        return True
